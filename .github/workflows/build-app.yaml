@@ -25,7 +25,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}/demo-app
+  IMAGE_NAME: ${{ github.repository_owner }}/majorityproject/demo-app
 
 jobs:
   build-stable:
