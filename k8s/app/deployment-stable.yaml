@@ -19,9 +19,11 @@ spec:
         app: demo-app
         version: stable
     spec:
+      imagePullSecrets:
+      - name: ghcr-secret
       containers:
       - name: demo-app
-        image: ghcr.io/OWNER/demo-app:stable  # Will be replaced by CI/CD
+        image: ghcr.io/thuanthentran/majorityproject/demo-app:stable  # Will be replaced by CI/CD
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
