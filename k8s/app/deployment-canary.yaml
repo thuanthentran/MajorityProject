@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
       - name: demo-app
-        image: ghcr.io/OWNER/demo-app:canary  # Will be replaced by CI/CD
+        image: ghcr.io/thuanthentran/MajorityProject/demo-app:canary-1ca922e304d9436c2b5d42e56916b82f5aa96e04
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
