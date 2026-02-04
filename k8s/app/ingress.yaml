@@ -1,0 +1,48 @@
+# Ingress configuration for Canary Deployment
+---
+# Main Ingress cho Stable Service
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: demo-app-ingress
+  namespace: canary-demo
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: demo-app.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: demo-app-stable
+            port:
+              number: 8080
+---
+# Canary Ingress với weight annotation
+# Traffic sẽ được điều tiết qua annotation canary-weight bởi RL Agent
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: demo-app-ingress-canary
+  namespace: canary-demo
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/canary: "true"
+    nginx.ingress.kubernetes.io/canary-weight: "0"  # Agent sẽ điều chỉnh
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: demo-app.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: demo-app-canary
+            port:
+              number: 8080

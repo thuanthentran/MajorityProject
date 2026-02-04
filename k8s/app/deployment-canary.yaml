@@ -1,0 +1,54 @@
+# Canary Service Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-app-canary
+  namespace: canary-demo
+  labels:
+    app: demo-app
+    version: canary
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: demo-app
+      version: canary
+  template:
+    metadata:
+      labels:
+        app: demo-app
+        version: canary
+    spec:
+      containers:
+      - name: demo-app
+        image: ghcr.io/OWNER/demo-app:canary  # Will be replaced by CI/CD
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        - name: PORT
+          value: "8080"
+        - name: APP_VERSION
+          value: "2.0-canary"
+        - name: SCENARIO
+          value: "healthy"  # Can be: healthy, buggy, degrading, flaky
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "200m"
+            memory: "256Mi"
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 10
