@@ -23,7 +23,7 @@ spec:
       - name: ghcr-secret
       containers:
       - name: demo-app
-        image: ghcr.io/thuanthentran/majorityproject/demo-app:canary  # Will be replaced by CI/CD
+        image: ghcr.io/thuanthentran/majorityproject/demo-app:canary-7311733fb8eacd5f5d9b4759971fcae71c521cde
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
