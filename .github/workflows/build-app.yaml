@@ -128,12 +128,15 @@ jobs:
       always() && 
       github.event_name != 'pull_request' &&
       (needs.build-stable.result == 'success' || needs.build-canary.result == 'success')
+    permissions:
+      contents: write
     
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: true
 
       - name: Update stable deployment image
         if: needs.build-stable.result == 'success'
