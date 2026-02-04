@@ -23,7 +23,7 @@ spec:
       - name: ghcr-secret
       containers:
       - name: demo-app
-        image: ghcr.io/thuanthentran/MajorityProject/demo-app:stable-e1e3e2a8baa52ab9573afefdc6920aee438b98c8
+        image: ghcr.io/thuanthentran/majorityproject/demo-app:stable-7311733fb8eacd5f5d9b4759971fcae71c521cde
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
