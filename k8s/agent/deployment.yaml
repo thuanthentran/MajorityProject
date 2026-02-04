@@ -18,7 +18,7 @@ spec:
       - name: ghcr-secret
       containers:
       - name: agent
-        image: ghcr.io/thuanthentran/majorityproject/canary-agent:latest  # Will be replaced by CI/CD
+        image: ghcr.io/thuanthentran/majorityproject/canary-agent:latest
         imagePullPolicy: Always
         envFrom:
         - configMapRef:
