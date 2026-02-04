@@ -1,0 +1,7 @@
+# Namespace cho demo
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: canary-demo
+  labels:
+    app: canary-demo

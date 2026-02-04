@@ -1,0 +1,52 @@
+# Agent Deployment Configuration
+---
+# ConfigMap cho Agent
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: canary-agent-config
+  namespace: canary-demo
+data:
+  STABLE_SERVICE: "http://demo-app-stable:8080"
+  CANARY_SERVICE: "http://demo-app-canary:8080"
+  INGRESS_NAME: "demo-app-ingress"
+  NAMESPACE: "canary-demo"
+  STEP_INTERVAL: "10"
+  MAX_STEPS: "100"
+  SLO_LATENCY: "200.0"
+---
+# RBAC: ServiceAccount cho Agent
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: canary-agent
+  namespace: canary-demo
+---
+# RBAC: Role cho phép agent patch Ingress
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: canary-agent-role
+  namespace: canary-demo
+rules:
+- apiGroups: ["networking.k8s.io"]
+  resources: ["ingresses"]
+  verbs: ["get", "list", "watch", "patch", "update"]
+- apiGroups: [""]
+  resources: ["services", "endpoints"]
+  verbs: ["get", "list", "watch"]
+---
+# RBAC: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: canary-agent-binding
+  namespace: canary-demo
+subjects:
+- kind: ServiceAccount
+  name: canary-agent
+  namespace: canary-demo
+roleRef:
+  kind: Role
+  name: canary-agent-role
+  apiGroup: rbac.authorization.k8s.io

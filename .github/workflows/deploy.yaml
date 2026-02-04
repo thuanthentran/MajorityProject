@@ -1,0 +1,85 @@
+# Deploy to Kubernetes Cluster
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+      deploy_type:
+        description: 'What to deploy'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - app-only
+          - agent-only
+
+env:
+  KUBECONFIG_SECRET: ${{ secrets.KUBECONFIG }}
+
+jobs:
+  deploy:
+    name: Deploy to ${{ github.event.inputs.environment }}
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Deploy namespace and base
+        run: |
+          kubectl apply -f k8s/base/namespace.yaml
+
+      - name: Deploy App
+        if: ${{ github.event.inputs.deploy_type != 'agent-only' }}
+        run: |
+          kubectl apply -f k8s/app/service.yaml
+          kubectl apply -f k8s/app/deployment-stable.yaml
+          kubectl apply -f k8s/app/deployment-canary.yaml
+          kubectl apply -f k8s/app/ingress.yaml
+          
+          # Wait for deployments
+          kubectl rollout status deployment/demo-app-stable -n canary-demo --timeout=300s
+          kubectl rollout status deployment/demo-app-canary -n canary-demo --timeout=300s
+
+      - name: Deploy Agent
+        if: ${{ github.event.inputs.deploy_type != 'app-only' }}
+        run: |
+          kubectl apply -f k8s/agent/configmap.yaml
+          
+          # Delete old job if exists
+          kubectl delete job canary-agent -n canary-demo --ignore-not-found
+          
+          # Deploy new agent job
+          kubectl apply -f k8s/agent/deployment.yaml
+
+      - name: Verify deployment
+        run: |
+          echo "=== Pods Status ==="
+          kubectl get pods -n canary-demo
+          echo ""
+          echo "=== Services Status ==="
+          kubectl get svc -n canary-demo
+          echo ""
+          echo "=== Ingress Status ==="
+          kubectl get ingress -n canary-demo

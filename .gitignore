@@ -1,1 +1,37 @@
+# Python
 .venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+logs/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Kubernetes tools (local)
+kubectl.exe
+minikube.exe
+
+# Model files (large)
+*.zip
+*.pt
+*.pth
+
+# Temporary
+*.tmp
+*.bak

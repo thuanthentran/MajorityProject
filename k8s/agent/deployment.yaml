@@ -1,0 +1,33 @@
+# Agent Job - chạy một lần để thực hiện canary rollout
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: canary-agent
+  namespace: canary-demo
+spec:
+  ttlSecondsAfterFinished: 300  # Cleanup sau 5 phút
+  backoffLimit: 1
+  template:
+    metadata:
+      labels:
+        app: canary-agent
+    spec:
+      serviceAccountName: canary-agent
+      restartPolicy: Never
+      containers:
+      - name: agent
+        image: ghcr.io/OWNER/canary-agent:latest  # Will be replaced by CI/CD
+        imagePullPolicy: Always
+        envFrom:
+        - configMapRef:
+            name: canary-agent-config
+        env:
+        - name: MODEL_PATH
+          value: "/app/models/best_model"
+        resources:
+          requests:
+            cpu: "200m"
+            memory: "512Mi"
+          limits:
+            cpu: "500m"
+            memory: "1Gi"
