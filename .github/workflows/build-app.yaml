@@ -154,4 +154,5 @@ jobs:
           git config --local user.name "github-actions[bot]"
           git add k8s/app/*.yaml
           git diff --staged --quiet || git commit -m "ci: update app images to ${{ github.sha }}"
+          git pull --rebase origin ${{ github.ref_name }} || true
           git push
