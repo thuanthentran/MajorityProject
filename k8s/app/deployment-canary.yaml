@@ -19,6 +19,8 @@ spec:
         app: demo-app
         version: canary
     spec:
+      imagePullSecrets:
+      - name: ghcr-secret
       containers:
       - name: demo-app
         image: ghcr.io/thuanthentran/MajorityProject/demo-app:canary-e1e3e2a8baa52ab9573afefdc6920aee438b98c8
