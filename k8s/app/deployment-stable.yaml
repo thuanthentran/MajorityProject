@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
       - name: demo-app
-        image: ghcr.io/thuanthentran/MajorityProject/demo-app:stable-1ca922e304d9436c2b5d42e56916b82f5aa96e04
+        image: ghcr.io/thuanthentran/MajorityProject/demo-app:stable-e1e3e2a8baa52ab9573afefdc6920aee438b98c8
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
