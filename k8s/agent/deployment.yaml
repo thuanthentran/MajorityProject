@@ -18,7 +18,7 @@ spec:
       - name: ghcr-secret
       containers:
       - name: agent
-        image: ghcr.io/thuanthentran/majorityproject/canary-agent:latest
+        image: ghcr.io/thuanthentran/majorityproject/canary-agent:6e9d3f41910244ddfb1464e34657d6c80121f114
         imagePullPolicy: Always
         envFrom:
         - configMapRef:
