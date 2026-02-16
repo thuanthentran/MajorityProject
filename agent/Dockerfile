@@ -21,11 +21,14 @@ COPY models/ /app/models/
 ENV MODEL_PATH=/app/models/best_model
 ENV STABLE_SERVICE=http://demo-app-stable:8080
 ENV CANARY_SERVICE=http://demo-app-canary:8080
+ENV PROMETHEUS_URL=http://prometheus:9090
 ENV INGRESS_NAME=demo-app-ingress
 ENV NAMESPACE=canary-demo
 ENV STEP_INTERVAL=10
 ENV MAX_STEPS=100
 ENV SLO_LATENCY=200.0
+ENV SLO_E2E_LATENCY=500.0
+ENV WINDOW_SIZE=10
 
 # Labels for versioning
 ARG BUILD_DATE
