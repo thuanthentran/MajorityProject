@@ -9,6 +9,7 @@ import random
 import time
 import os
 import threading
+import psutil
 
 app = Flask(__name__)
 
@@ -21,8 +22,11 @@ SCENARIO = os.getenv("SCENARIO", "healthy")
 request_count = 0
 error_count = 0
 total_latency = 0
+latency_values = []  # sliding window cho p95 calculation
+MAX_LATENCY_WINDOW = 500  # giữ 500 latency gần nhất
 start_time = time.time()
 lock = threading.Lock()
+_psutil_proc = psutil.Process(os.getpid())
 
 
 def get_error_rate():
@@ -88,6 +92,9 @@ def process():
     
     with lock:
         total_latency += latency
+        latency_values.append(latency)
+        if len(latency_values) > MAX_LATENCY_WINDOW:
+            latency_values.pop(0)
     
     error_rate = get_error_rate()
     if random.random() < error_rate:
@@ -130,14 +137,35 @@ def metrics():
     with lock:
         avg_latency = total_latency / request_count if request_count > 0 else 0
         current_error_rate = error_count / request_count if request_count > 0 else 0
-    
+        # P95 latency từ sliding window
+        if latency_values:
+            sorted_lat = sorted(latency_values)
+            p95_idx = int(len(sorted_lat) * 0.95)
+            latency_p95 = sorted_lat[min(p95_idx, len(sorted_lat) - 1)]
+        else:
+            latency_p95 = 0.0
+
+    # CPU & Memory usage của process hiện tại
+    try:
+        cpu_usage = _psutil_proc.cpu_percent(interval=None) / 100.0  # normalize [0,1]
+        mem_info = _psutil_proc.memory_info()
+        # Normalize memory: RSS / container limit (default 256Mi)
+        mem_limit = int(os.getenv("MEMORY_LIMIT_BYTES", str(256 * 1024 * 1024)))
+        memory_usage = mem_info.rss / mem_limit
+    except Exception:
+        cpu_usage = 0.0
+        memory_usage = 0.0
+
     return jsonify({
         "version": VERSION,
         "scenario": SCENARIO,
         "total_requests": request_count,
         "error_count": error_count,
         "error_rate": round(current_error_rate, 6),
-        "avg_latency_ms": round(avg_latency, 2)
+        "avg_latency_ms": round(avg_latency, 2),
+        "latency_p95_ms": round(latency_p95, 2),
+        "cpu_usage": round(min(cpu_usage, 1.0), 4),
+        "memory_usage": round(min(memory_usage, 1.0), 4)
     })
 
 
@@ -148,6 +176,7 @@ def reset_metrics():
         request_count = 0
         error_count = 0
         total_latency = 0
+        latency_values.clear()
         start_time = time.time()
     return jsonify({"message": "Metrics reset successfully"})
 

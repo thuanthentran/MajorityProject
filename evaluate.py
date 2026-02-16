@@ -1,24 +1,37 @@
+"""
+Evaluate trained Canary DQN Agent (context-window, microservice cluster).
+
+Hiển thị đầy đủ 8 metrics mỗi step:
+  Local:  error_rate_v2, latency_p95_v2, cpu_usage_v2, memory_usage_v2
+  Global: total_error_rate, end_to_end_latency, request_rate, traffic_v2
+"""
+
 from stable_baselines3 import DQN
 from env.canary_env import CanaryEnv
 import os
 import argparse
+import numpy as np
 
-# Parse arguments
+# ---- CLI ----
 parser = argparse.ArgumentParser(description="Evaluate Canary DQN Agent")
 parser.add_argument(
-    "--scenario", 
-    type=str, 
+    "--scenario",
+    type=str,
     choices=["healthy", "buggy", "degrading", "flaky", "random"],
     default="random",
-    help="Scenario to test: healthy, buggy, degrading, flaky, or random"
+    help="Scenario to test (default: random)"
 )
+parser.add_argument("--window-size", type=int, default=10, help="Context window size (must match training)")
+parser.add_argument("--episodes", type=int, default=1, help="Number of episodes to run")
 args = parser.parse_args()
 
-# Tạo env với scenario được chọn
-force_scenario = None if args.scenario == "random" else args.scenario
-env = CanaryEnv(force_scenario=force_scenario)
+WINDOW_SIZE = args.window_size
 
-# Load best model nếu tồn tại, nếu không thì load final model
+# Tạo env
+force_scenario = None if args.scenario == "random" else args.scenario
+env = CanaryEnv(force_scenario=force_scenario, window_size=WINDOW_SIZE)
+
+# Load model
 best_model_path = "./best_model/best_model.zip"
 final_model_path = "canary_dqn_agent.zip"
 
@@ -31,27 +44,49 @@ elif os.path.exists(final_model_path):
 else:
     raise FileNotFoundError("No trained model found! Please run train.py first.")
 
-obs, info = env.reset()
-terminated = False
-truncated = False
+action_names = ["HOLD", "UP  ", "DOWN"]
 
-print(f"=== Rollout start [Scenario: {env.scenario.upper()}] ===")
-action_names = ["HOLD", "UP", "DOWN"]
-while not (terminated or truncated):
-    action, _ = model.predict(obs, deterministic=True)
-    obs, reward, terminated, truncated, info = env.step(action)
-    
-    # Lấy giá trị thực từ info thay vì obs (đã normalized)
-    real_latency = info.get("latency", obs[2] * 500)
-    real_error = info.get("error_rate", obs[1])
+for ep in range(args.episodes):
+    obs, info = env.reset()
+    terminated = False
+    truncated = False
+    total_reward = 0.0
 
-    print(f"""
-Step: {int(obs[3] * 100)}
-Action: {action_names[action]}
-Traffic v2: {obs[0]*100:.0f}%
-Error rate: {real_error*100:.2f}%
-Latency: {real_latency:.1f}ms
-Reward: {reward:.2f}
-""")
+    print(f"\n{'=' * 80}")
+    print(f"Episode {ep + 1} | Scenario: {env.scenario.upper()} | Window: {WINDOW_SIZE}")
+    print(f"{'=' * 80}")
+    header = (
+        f"{'Step':>4} {'Action':>6} | "
+        f"{'Traf%':>5} {'ErrL%':>6} {'P95ms':>6} {'CPU%':>5} {'Mem%':>5} | "
+        f"{'ErrG%':>6} {'E2Ems':>6} {'RRate':>5} {'Casc':>5} | {'Rew':>7}"
+    )
+    print(header)
+    print("-" * len(header))
 
-print("=== Rollout finished ===")
+    while not (terminated or truncated):
+        action, _ = model.predict(obs, deterministic=True)
+        obs, reward, terminated, truncated, info = env.step(action)
+        total_reward += reward
+
+        step = env.step_count
+        t = info["traffic_v2"] * 100
+        er = info["error_rate_v2"] * 100
+        l95 = info["latency_p95_v2"]
+        cpu = info["cpu_usage_v2"] * 100
+        mem = info["memory_usage_v2"] * 100
+        ger = info["total_error_rate"] * 100
+        e2e = info["end_to_end_latency"]
+        rr = info["request_rate"]
+        cas = info["cascade_factor"]
+
+        print(
+            f"{step:4d} {action_names[action]:>6} | "
+            f"{t:5.0f} {er:6.2f} {l95:6.1f} {cpu:5.1f} {mem:5.1f} | "
+            f"{ger:6.2f} {e2e:6.1f} {rr:5.2f} {cas:5.3f} | {reward:7.2f}"
+        )
+
+    status = "SUCCESS" if info["traffic_v2"] >= 1.0 else "FAIL/TIMEOUT"
+    print(f"\n>>> {status} | Total Reward: {total_reward:.2f}")
+
+print(f"\n{'=' * 80}")
+print("Evaluation finished.")

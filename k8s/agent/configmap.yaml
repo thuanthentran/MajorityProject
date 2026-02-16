@@ -9,11 +9,14 @@ metadata:
 data:
   STABLE_SERVICE: "http://demo-app-stable:8080"
   CANARY_SERVICE: "http://demo-app-canary:8080"
+  PROMETHEUS_URL: "http://prometheus:9090"
   INGRESS_NAME: "demo-app-ingress"
   NAMESPACE: "canary-demo"
   STEP_INTERVAL: "10"
   MAX_STEPS: "100"
   SLO_LATENCY: "200.0"
+  SLO_E2E_LATENCY: "500.0"
+  WINDOW_SIZE: "10"
 ---
 # RBAC: ServiceAccount cho Agent
 apiVersion: v1
