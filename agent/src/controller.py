@@ -99,7 +99,7 @@ class CanaryController:
     def get_canary_metrics(self):
         """Lấy metrics từ canary service (local metrics)."""
         try:
-            response = requests.get(f"{CANARY_SERVICE}/metrics", timeout=5)
+            response = requests.get(f"{CANARY_SERVICE}/metrics/json", timeout=5)
             if response.status_code == 200:
                 return response.json()
         except Exception as e:

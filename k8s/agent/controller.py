@@ -63,7 +63,7 @@ class CanaryController:
     def get_metrics(self, service_url):
         """Lấy metrics từ service."""
         try:
-            response = requests.get(f"{service_url}/metrics", timeout=5)
+            response = requests.get(f"{service_url}/metrics/json", timeout=5)
             if response.status_code == 200:
                 return response.json()
         except Exception as e:
