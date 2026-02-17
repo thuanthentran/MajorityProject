@@ -32,7 +32,17 @@ minikube.exe
 *.pt
 *.pth
 
+# But keep agent model for Docker build
+!agent/models/best_model.zip
+!best_model/best_model.zip
+
 # Temporary
 *.tmp
 *.bak
 NT114-20260206T141337Z-1-001/
+
+test.sh
+
+deploy.sh
+
+deploy.ps1

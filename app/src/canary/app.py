@@ -69,14 +69,149 @@ def get_latency():
         return base
 
 
+def _wants_html():
+        accept = flask_request.headers.get("Accept", "")
+        return "text/html" in accept.lower()
+
+
+def _render_html(payload, metrics):
+        channel = "canary"
+        color = "#ff9f1c" if channel == "canary" else "#2ec4b6"
+        scenario = payload.get("scenario", "unknown")
+        return f"""<!doctype html>
+<html lang=\"en\">
+    <head>
+        <meta charset=\"utf-8\" />
+        <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
+        <title>Demo App - {channel.title()}</title>
+        <style>
+            :root {{
+                --bg: #0f172a;
+                --panel: #111827;
+                --text: #e2e8f0;
+                --muted: #94a3b8;
+                --accent: {color};
+            }}
+            * {{ box-sizing: border-box; }}
+            body {{
+                margin: 0; font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+                background: radial-gradient(circle at top, #1f2937 0%, #0f172a 55%);
+                color: var(--text);
+            }}
+            .wrap {{ max-width: 920px; margin: 48px auto; padding: 0 20px; }}
+            .card {{
+                background: var(--panel); border: 1px solid #1f2937; border-radius: 16px;
+                padding: 24px; box-shadow: 0 20px 40px rgba(0,0,0,0.35);
+            }}
+            .badge {{
+                display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px;
+                border-radius: 999px; background: rgba(255,255,255,0.08);
+                font-size: 14px; color: var(--text);
+            }}
+            .dot {{ width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }}
+            h1 {{ margin: 12px 0 6px; font-size: 28px; }}
+            .muted {{ color: var(--muted); }}
+            .grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-top: 20px; }}
+            .stat {{ background: #0b1220; border: 1px solid #1f2937; border-radius: 12px; padding: 12px; }}
+            .stat h3 {{ margin: 0 0 6px; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }}
+            .stat p {{ margin: 0; font-size: 20px; }}
+            .footer {{ margin-top: 18px; font-size: 13px; color: var(--muted); }}
+            .row {{ display: flex; flex-wrap: wrap; gap: 12px; margin-top: 16px; }}
+            .pill {{ padding: 6px 12px; border-radius: 999px; background: rgba(255,255,255,0.06); font-size: 13px; }}
+        </style>
+    </head>
+    <body>
+        <div class=\"wrap\">
+            <div class=\"card\">
+                <span class=\"badge\"><span class=\"dot\"></span>{channel.upper()} CHANNEL</span>
+                <h1>Demo App - {payload.get("version", "unknown")}</h1>
+                <p class=\"muted\">Scenario: <strong>{scenario}</strong> | Status: <strong>{payload.get("status", "unknown")}</strong></p>
+                <div class=\"row\">
+                    <span class=\"pill\">Service: {payload.get("service", "demo-app")}</span>
+                    <span class=\"pill\">Port: {os.getenv("PORT", "8080")}</span>
+                </div>
+                <div class=\"grid\">
+                    <div class=\"stat\"><h3>Total Requests</h3><p>{metrics.get("total_requests", 0)}</p></div>
+                    <div class=\"stat\"><h3>Error Rate</h3><p>{metrics.get("error_rate", 0.0)}</p></div>
+                    <div class=\"stat\"><h3>Avg Latency (ms)</h3><p>{metrics.get("avg_latency_ms", 0.0)}</p></div>
+                    <div class=\"stat\"><h3>P95 Latency (ms)</h3><p>{metrics.get("latency_p95_ms", 0.0)}</p></div>
+                    <div class=\"stat\"><h3>CPU Usage</h3><p>{metrics.get("cpu_usage", 0.0)}</p></div>
+                    <div class=\"stat\"><h3>Memory Usage</h3><p>{metrics.get("memory_usage", 0.0)}</p></div>
+                </div>
+                <div class=\"footer\">Open /api/process for traffic, /metrics for JSON, /ui for this page.</div>
+            </div>
+        </div>
+    </body>
+</html>"""
+
+
+def _compute_metrics():
+        with lock:
+                avg_latency = total_latency / request_count if request_count > 0 else 0
+                current_error_rate = error_count / request_count if request_count > 0 else 0
+                if latency_values:
+                        sorted_lat = sorted(latency_values)
+                        p95_idx = int(len(sorted_lat) * 0.95)
+                        latency_p95 = sorted_lat[min(p95_idx, len(sorted_lat) - 1)]
+                else:
+                        latency_p95 = 0.0
+
+        try:
+                cpu_usage = _psutil_proc.cpu_percent(interval=None) / 100.0
+                mem_info = _psutil_proc.memory_info()
+                mem_limit = int(os.getenv("MEMORY_LIMIT_BYTES", str(256 * 1024 * 1024)))
+                memory_usage = mem_info.rss / mem_limit
+        except Exception:
+                cpu_usage = 0.0
+                memory_usage = 0.0
+
+        return {
+                "version": VERSION,
+                "scenario": SCENARIO,
+                "total_requests": request_count,
+                "error_count": error_count,
+                "error_rate": round(current_error_rate, 6),
+                "avg_latency_ms": round(avg_latency, 2),
+                "latency_p95_ms": round(latency_p95, 2),
+                "cpu_usage": round(min(cpu_usage, 1.0), 4),
+                "memory_usage": round(min(memory_usage, 1.0), 4)
+        }
+
+
 @app.route("/")
 def home():
-    return jsonify({
-        "service": "demo-app",
-        "version": VERSION,
-        "scenario": SCENARIO,
-        "status": "running"
-    })
+        payload = {
+                "service": "demo-app",
+                "version": VERSION,
+                "scenario": SCENARIO,
+                "status": "running"
+        }
+        if _wants_html():
+                metrics_payload = _compute_metrics()
+                return _render_html(payload, metrics_payload)
+        return jsonify(payload)
+
+
+@app.route("/ui")
+def ui():
+        payload = {
+                "service": "demo-app",
+                "version": VERSION,
+                "scenario": SCENARIO,
+                "status": "running"
+        }
+        metrics_payload = _compute_metrics()
+        return _render_html(payload, metrics_payload)
+
+
+@app.route("/api/info")
+def api_info():
+        return jsonify({
+                "service": "demo-app",
+                "version": VERSION,
+                "scenario": SCENARIO,
+                "status": "running"
+        })
 
 
 @app.route("/api/process")
@@ -134,39 +269,7 @@ def ready():
 
 @app.route("/metrics")
 def metrics():
-    with lock:
-        avg_latency = total_latency / request_count if request_count > 0 else 0
-        current_error_rate = error_count / request_count if request_count > 0 else 0
-        # P95 latency từ sliding window
-        if latency_values:
-            sorted_lat = sorted(latency_values)
-            p95_idx = int(len(sorted_lat) * 0.95)
-            latency_p95 = sorted_lat[min(p95_idx, len(sorted_lat) - 1)]
-        else:
-            latency_p95 = 0.0
-
-    # CPU & Memory usage của process hiện tại
-    try:
-        cpu_usage = _psutil_proc.cpu_percent(interval=None) / 100.0  # normalize [0,1]
-        mem_info = _psutil_proc.memory_info()
-        # Normalize memory: RSS / container limit (default 256Mi)
-        mem_limit = int(os.getenv("MEMORY_LIMIT_BYTES", str(256 * 1024 * 1024)))
-        memory_usage = mem_info.rss / mem_limit
-    except Exception:
-        cpu_usage = 0.0
-        memory_usage = 0.0
-
-    return jsonify({
-        "version": VERSION,
-        "scenario": SCENARIO,
-        "total_requests": request_count,
-        "error_count": error_count,
-        "error_rate": round(current_error_rate, 6),
-        "avg_latency_ms": round(avg_latency, 2),
-        "latency_p95_ms": round(latency_p95, 2),
-        "cpu_usage": round(min(cpu_usage, 1.0), 4),
-        "memory_usage": round(min(memory_usage, 1.0), 4)
-    })
+    return jsonify(_compute_metrics())
 
 
 @app.route("/metrics/reset", methods=["POST"])

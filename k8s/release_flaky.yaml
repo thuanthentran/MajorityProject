@@ -1,0 +1,276 @@
+# ============================================================
+#  Canary Release Demo - All-in-One
+#  Apply:   kubectl apply -f all-in-one.yaml
+#  Delete:  kubectl delete namespace canary-demo
+# ============================================================
+
+# --- 1. Namespace ---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: canary-demo
+  labels:
+    app: canary-demo
+
+---
+# --- 2. Services ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: demo-app-stable
+  namespace: canary-demo
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8080
+    targetPort: 8080
+    name: http
+  selector:
+    app: demo-app
+    version: stable
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: demo-app-canary
+  namespace: canary-demo
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8080
+    targetPort: 8080
+    name: http
+  selector:
+    app: demo-app
+    version: canary
+
+---
+# --- 3. Stable Deployment (1 replica - single node cluster) ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-app-stable
+  namespace: canary-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: demo-app
+      version: stable
+  template:
+    metadata:
+      labels:
+        app: demo-app
+        version: stable
+    spec:
+      imagePullSecrets:
+      - name: ghcr-secret
+      containers:
+      - name: demo-app
+        image: ghcr.io/thuanthentran/majorityproject/demo-app:stable
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+        env:
+        - name: PORT
+          value: "8080"
+        - name: APP_VERSION
+          value: "1.0-stable"
+        - name: ERROR_RATE
+          value: "0.002"
+        - name: BASE_LATENCY
+          value: "50"
+        resources:
+          requests: { cpu: "100m", memory: "128Mi" }
+          limits:   { cpu: "200m", memory: "256Mi" }
+        readinessProbe:
+          httpGet: { path: /ready, port: 8080 }
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        livenessProbe:
+          httpGet: { path: /health, port: 8080 }
+          initialDelaySeconds: 10
+          periodSeconds: 10
+
+---
+# --- 4. Canary Deployment (1 replica) ---
+#   SCENARIO: healthy | buggy | degrading | flaky
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-app-canary
+  namespace: canary-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: demo-app
+      version: canary
+  template:
+    metadata:
+      labels:
+        app: demo-app
+        version: canary
+    spec:
+      imagePullSecrets:
+      - name: ghcr-secret
+      containers:
+      - name: demo-app
+        image: ghcr.io/thuanthentran/majorityproject/demo-app:canary
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+        env:
+        - name: PORT
+          value: "8080"
+        - name: APP_VERSION
+          value: "2.0-canary"
+        - name: SCENARIO
+          value: "flaky"
+        resources:
+          requests: { cpu: "100m", memory: "128Mi" }
+          limits:   { cpu: "200m", memory: "256Mi" }
+        readinessProbe:
+          httpGet: { path: /ready, port: 8080 }
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        livenessProbe:
+          httpGet: { path: /health, port: 8080 }
+          initialDelaySeconds: 10
+          periodSeconds: 10
+
+---
+# --- 5. Ingress (stable - main) ---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: demo-app-ingress
+  namespace: canary-demo
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: demo-app.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: demo-app-stable
+            port: { number: 8080 }
+
+---
+# --- 6. Ingress (canary - weight controlled by agent) ---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: demo-app-ingress-canary
+  namespace: canary-demo
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/canary: "true"
+    nginx.ingress.kubernetes.io/canary-weight: "0"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: demo-app.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: demo-app-canary
+            port: { number: 8080 }
+
+---
+# --- 7. Agent ConfigMap ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: canary-agent-config
+  namespace: canary-demo
+data:
+  STABLE_SERVICE:  "http://demo-app-stable:8080"
+  CANARY_SERVICE:  "http://demo-app-canary:8080"
+  PROMETHEUS_URL:  "http://prometheus.monitoring:9090"
+  INGRESS_NAME:    "demo-app-ingress"
+  NAMESPACE:       "canary-demo"
+  STEP_INTERVAL:   "10"
+  MAX_STEPS:       "100"
+  SLO_LATENCY:     "200.0"
+  SLO_E2E_LATENCY: "500.0"
+  WINDOW_SIZE:     "10"
+
+---
+# --- 8. RBAC ---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: canary-agent
+  namespace: canary-demo
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: canary-agent-role
+  namespace: canary-demo
+rules:
+- apiGroups: ["networking.k8s.io"]
+  resources: ["ingresses"]
+  verbs: ["get", "list", "watch", "patch", "update"]
+- apiGroups: [""]
+  resources: ["services", "endpoints"]
+  verbs: ["get", "list", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: canary-agent-binding
+  namespace: canary-demo
+subjects:
+- kind: ServiceAccount
+  name: canary-agent
+  namespace: canary-demo
+roleRef:
+  kind: Role
+  name: canary-agent-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# --- 9. Agent Job ---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: canary-agent
+  namespace: canary-demo
+spec:
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 1
+  template:
+    metadata:
+      labels:
+        app: canary-agent
+    spec:
+      serviceAccountName: canary-agent
+      restartPolicy: Never
+      imagePullSecrets:
+      - name: ghcr-secret
+      containers:
+      - name: agent
+        image: ghcr.io/thuanthentran/majorityproject/canary-agent:latest
+        imagePullPolicy: Always
+        envFrom:
+        - configMapRef:
+            name: canary-agent-config
+        env:
+        - name: MODEL_PATH
+          value: "/app/models/best_model"
+        resources:
+          requests: { cpu: "200m", memory: "512Mi" }
+          limits:   { cpu: "500m", memory: "1Gi" }
