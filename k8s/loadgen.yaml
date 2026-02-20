@@ -1,0 +1,43 @@
+# Load generator for demo-app via ingress host
+# Apply: kubectl apply -f k8s/loadgen.yaml
+# This file includes:
+# - Deployment: continuous traffic
+# - CronJob: periodic traffic bursts
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-loadgen
+  namespace: canary-demo
+  labels:
+    app: demo-loadgen
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: demo-loadgen
+  template:
+    metadata:
+      labels:
+        app: demo-loadgen
+    spec:
+      restartPolicy: Always
+      containers:
+      - name: loadgen
+        image: curlimages/curl:8.5.0
+        imagePullPolicy: IfNotPresent
+        args:
+        - /bin/sh
+        - -c
+        - |
+          # Hit both stable and canary services directly (bypass ingress)
+          # This avoids single-threaded Flask bottleneck per connection
+          STABLE=http://demo-app-stable.canary-demo.svc.cluster.local:8080
+          CANARY=http://demo-app-canary.canary-demo.svc.cluster.local:8080
+          while true; do
+            curl -sf "$STABLE/api/process" > /dev/null &
+            curl -sf "$CANARY/api/process" > /dev/null &
+            wait
+            sleep 0.05
+          done
