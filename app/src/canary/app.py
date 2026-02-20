@@ -39,7 +39,7 @@ def get_error_rate():
     if SCENARIO == "healthy":
         return 0.002 + random.uniform(0, 0.005)
     elif SCENARIO == "buggy":
-        return 0.025 + random.uniform(0, 0.025)
+        return 0.08 + random.uniform(0, 0.07)
     elif SCENARIO == "degrading":
         base = 0.003 + time_factor * 0.04
         return base + random.uniform(0, 0.01)
