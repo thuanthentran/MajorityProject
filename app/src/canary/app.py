@@ -294,46 +294,45 @@ def _compute_metrics():
         }
 
 
-    def _escape_label_value(value):
-        return str(value).replace("\\", "\\\\").replace("\n", "\\n").replace("\"", "\\\"")
+def _escape_label_value(value):
+    return str(value).replace("\\", "\\\\").replace("\n", "\\n").replace("\"", "\\\"")
 
 
-    def _format_prometheus_metrics(metrics):
-        channel = "canary"
-        version = _escape_label_value(metrics.get("version", "unknown"))
-        scenario = _escape_label_value(metrics.get("scenario", "unknown"))
-        labels = f'version="{version}",channel="{channel}",scenario="{scenario}"'
-        lines = [
-            "# HELP demo_app_info App metadata.",
-            "# TYPE demo_app_info gauge",
-            f"demo_app_info{{{labels}}} 1",
-            "# HELP demo_requests_total Total number of requests.",
-            "# TYPE demo_requests_total counter",
-            f"demo_requests_total{{channel=\"{channel}\"}} {metrics.get('total_requests', 0)}",
-            "# HELP demo_request_errors_total Total number of error responses.",
-            "# TYPE demo_request_errors_total counter",
-            f"demo_request_errors_total{{channel=\"{channel}\"}} {metrics.get('error_count', 0)}",
-            "# HELP demo_request_error_rate Error rate for requests.",
-            "# TYPE demo_request_error_rate gauge",
-            f"demo_request_error_rate{{channel=\"{channel}\"}} {metrics.get('error_rate', 0.0)}",
-            "# HELP demo_request_latency_avg_ms Average request latency in milliseconds.",
-            "# TYPE demo_request_latency_avg_ms gauge",
-            f"demo_request_latency_avg_ms{{channel=\"{channel}\"}} {metrics.get('avg_latency_ms', 0.0)}",
-            "# HELP demo_request_latency_p95_ms P95 request latency in milliseconds.",
-            "# TYPE demo_request_latency_p95_ms gauge",
-            f"demo_request_latency_p95_ms{{channel=\"{channel}\"}} {metrics.get('latency_p95_ms', 0.0)}",
-            "# HELP demo_request_latency_sum_ms Total accumulated latency in milliseconds.",
-            "# TYPE demo_request_latency_sum_ms counter",
-            f"demo_request_latency_sum_ms{{channel=\"{channel}\"}} {round(total_latency, 2)}",
-            "# HELP demo_cpu_usage CPU usage ratio.",
-            "# TYPE demo_cpu_usage gauge",
-            f"demo_cpu_usage{{channel=\"{channel}\"}} {metrics.get('cpu_usage', 0.0)}",
-            "# HELP demo_memory_usage Memory usage ratio.",
-            "# TYPE demo_memory_usage gauge",
-            f"demo_memory_usage{{channel=\"{channel}\"}} {metrics.get('memory_usage', 0.0)}",
-        ]
-        return "\n".join(lines) + "\n"
-
+def _format_prometheus_metrics(metrics):
+    channel = "canary"
+    version = _escape_label_value(metrics.get("version", "unknown"))
+    scenario = _escape_label_value(metrics.get("scenario", "unknown"))
+    labels = f'version="{version}",channel="{channel}",scenario="{scenario}"'
+    lines = [
+        "# HELP demo_app_info App metadata.",
+        "# TYPE demo_app_info gauge",
+        f"demo_app_info{{{labels}}} 1",
+        "# HELP demo_requests_total Total number of requests.",
+        "# TYPE demo_requests_total counter",
+        f"demo_requests_total{{channel=\"{channel}\"}} {metrics.get('total_requests', 0)}",
+        "# HELP demo_request_errors_total Total number of error responses.",
+        "# TYPE demo_request_errors_total counter",
+        f"demo_request_errors_total{{channel=\"{channel}\"}} {metrics.get('error_count', 0)}",
+        "# HELP demo_request_error_rate Error rate for requests.",
+        "# TYPE demo_request_error_rate gauge",
+        f"demo_request_error_rate{{channel=\"{channel}\"}} {metrics.get('error_rate', 0.0)}",
+        "# HELP demo_request_latency_avg_ms Average request latency in milliseconds.",
+        "# TYPE demo_request_latency_avg_ms gauge",
+        f"demo_request_latency_avg_ms{{channel=\"{channel}\"}} {metrics.get('avg_latency_ms', 0.0)}",
+        "# HELP demo_request_latency_p95_ms P95 request latency in milliseconds.",
+        "# TYPE demo_request_latency_p95_ms gauge",
+        f"demo_request_latency_p95_ms{{channel=\"{channel}\"}} {metrics.get('latency_p95_ms', 0.0)}",
+        "# HELP demo_request_latency_sum_ms Total accumulated latency in milliseconds.",
+        "# TYPE demo_request_latency_sum_ms counter",
+        f"demo_request_latency_sum_ms{{channel=\"{channel}\"}} {round(total_latency, 2)}",
+        "# HELP demo_cpu_usage CPU usage ratio.",
+        "# TYPE demo_cpu_usage gauge",
+        f"demo_cpu_usage{{channel=\"{channel}\"}} {metrics.get('cpu_usage', 0.0)}",
+        "# HELP demo_memory_usage Memory usage ratio.",
+        "# TYPE demo_memory_usage gauge",
+        f"demo_memory_usage{{channel=\"{channel}\"}} {metrics.get('memory_usage', 0.0)}",
+    ]
+    return "\n".join(lines) + "\n"
 
 @app.route("/")
 def home():
